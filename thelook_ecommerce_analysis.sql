@@ -204,16 +204,32 @@ FROM ranks
 WHERE persent_rank>=0.95
 
 #Порівнюємо суму кожного замовлення з сумою першого замовлення
-WITH first_orders AS (
+WITH user_orders AS (
   SELECT 
-    *,
-    ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY created_at) AS rn,
-    FIRST_VALUE(sale_price) OVER(PARTITION BY user_id ORDER BY created_at) AS first_price
+    user_id,
+    order_id,
+    created_at,
+    SUM(sale_price) AS order_amount
   FROM `bigquery-public-data.thelook_ecommerce.order_items`
+  WHERE status = 'Complete'
+  GROUP BY user_id, order_id, created_at
+),
+ranked_orders AS (
+  SELECT
+    user_id,
+    order_id,
+    created_at,
+    order_amount,
+    ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY created_at) AS rn,
+    FIRST_VALUE(order_amount) OVER(PARTITION BY user_id ORDER BY created_at) AS first_order_amount
+  FROM user_orders
 )
-
 SELECT
-  AVG(first_price - sale_price) AS avg_diff,
-  AVG(first_price - sale_price) / AVG(first_price) AS avg_prc_diff
-FROM first_orders
-WHERE status = 'Complete'
+  user_id,
+  ROUND(AVG(order_amount - first_order_amount),2) AS avg_diff,
+  ROUND(AVG((order_amount - first_order_amount) / first_order_amount),2) AS avg_prc_diff
+FROM ranked_orders
+WHERE rn > 1 -- щоб не враховувати перше замовлення
+GROUP BY 1
+ORDER BY 3 DESC
+LIMIT 100
