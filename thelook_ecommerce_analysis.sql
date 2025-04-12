@@ -233,3 +233,37 @@ WHERE rn > 1 -- щоб не враховувати перше замовленн
 GROUP BY 1
 ORDER BY 3 DESC
 LIMIT 100
+
+
+#Визначаємо відсоток в кого друге замовлення менше першого
+WITH user_orders AS (
+  SELECT 
+    user_id,
+    order_id,
+    created_at,
+    SUM(sale_price) AS order_amount
+  FROM `bigquery-public-data.thelook_ecommerce.order_items`
+  WHERE status = 'Complete'
+  GROUP BY user_id, order_id, created_at
+),
+ranked_orders AS (
+  SELECT
+    user_id,
+    order_id,
+    created_at,
+    order_amount,
+    ROW_NUMBER() OVER(PARTITION BY user_id ORDER BY created_at) AS rn,
+    FIRST_VALUE(order_amount) OVER(PARTITION BY user_id ORDER BY created_at) AS first_order_amount
+  FROM user_orders
+),
+second_vs_first AS (
+  SELECT
+    user_id,
+    order_amount AS second_order,
+    first_order_amount
+  FROM ranked_orders
+  WHERE rn = 2
+)
+SELECT
+  COUNTIF(second_order < first_order_amount) * 100.0 / COUNT(*) AS pct_second_less_than_first
+FROM second_vs_first
