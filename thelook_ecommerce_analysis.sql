@@ -118,7 +118,8 @@ WITH
   LIMIT
     10)
 SELECT
-  SUM(oi.sale_price)-SUM(ii.cost) AS profit_from_top3
+  oi.user_id,
+  SUM(oi.sale_price)-SUM(ii.cost) AS profit_from_top
 FROM
   `bigquery-public-data.thelook_ecommerce.order_items` oi
 LEFT JOIN
@@ -132,6 +133,10 @@ WHERE
     user_id
   FROM
     top_ten)
+GROUP BY
+  oi.user_id
+ORDER BY
+  2 DESC
 LIMIT
   10;
   
